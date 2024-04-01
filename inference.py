@@ -1,11 +1,13 @@
 import os
 
 ################################################
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
-result_dir = "./results/ablation_step_50/"
-model_path = "/home/txiang/CMRxRecon/DiffCMR/checkpoints/t1_04_128_model120000.pt"
-# val_pair_file = "/home/txiang/CMRxRecon/CMRxRecon_Repo/dataset/train_pair_file/Task2_acc_10_val_pair_file_npy_clean.txt"
-val_pair_file = "/home/txiang/CMRxRecon/CMRxRecon_Repo/dataset/train_pair_file_task1/AccFactor04_rMax_512_validation_pair.txt"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+result_dir = "./results/ablation_step_100/"
+#re
+model_path = 'C:/Users/2524923/OneDrive - University of Dundee/Documents/final project/DiffCMR-main/log/t1_04_128/model12000.pt'
+# val_pair_file = 'C:/Users/2524923/OneDrive - University of Dundee/Documents/final project/DiffCMR-main/AccFactor10_rMax_512_training_pair.txt'
+val_pair_file = r'C:/Users/2524923/OneDrive - University of Dundee/Documents/final project/DiffCMR-main/AccFactor08_rMax_512_training_pair.txt'
 val_bs = 24
 ################################################
 
@@ -36,7 +38,7 @@ logger.configure(dir=result_dir)
 arg_dict = model_and_diffusion_defaults()
 
 arg_dict["image_size"]=128
-arg_dict["diffusion_steps"]=50
+arg_dict["diffusion_steps"]=100
 print(arg_dict)
 model, diffusion = create_model_and_diffusion(**arg_dict)
 model.load_state_dict(

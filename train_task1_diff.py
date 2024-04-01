@@ -15,7 +15,6 @@ from improved_diffusion.utils import set_random_seed, set_random_seed_for_iterat
 import warnings
 warnings.filterwarnings('ignore')
 from torch.utils.data.distributed import DistributedSampler
-
 import argparse
 import logging
 import os
@@ -36,17 +35,24 @@ from torch.utils.tensorboard import SummaryWriter
 from time import gmtime, strftime
 current_time = strftime("%m%d_%H_%M", gmtime())
 current_day = strftime("%m%d", gmtime())
-
+import torch
 ############################
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
-logdir = "./log/t1_08_128/"
-trainpairfile = "/home/txiang/CMRxRecon/CMRxRecon_Repo/dataset/train_pair_file_task1/AccFactor08_rMax_512_training_pair.txt"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+#os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+#cuda_ = "cuda:1"
+#evice = torch.device(cuda_ if torch.cuda.is_available() else "cpu")
+
+#logdir = "./log/t1_08_128/"
+#logdir = "./log/t1_04_128/"
+logdir = "./log/t1_10_128/"
+#trainpairfile = 'C:/Users/2524923/OneDrive - University of Dundee/Documents/final project/DiffCMR-main/AccFactor04_rMax_512_training_pair.txt'
+trainpairfile ='C:/Users/2524923/OneDrive - University of Dundee/Documents/final project/DiffCMR-main/AccFactor10_rMax_512_training_pair.txt'
 ############################
 
 
 def main():
     dist_util.setup_dist()
-    logger.configure(dir=logdir)
+    logger.configure(dir=logdir)             
     arg_dict = model_and_diffusion_defaults()
     arg_dict["image_size"]=128
     # arg_dict["num_channels"]=128
@@ -98,7 +104,8 @@ def main():
             image_size=128,
             val_dataset=None,
             run_without_test=True,
-        ).run_loop(start_print_iter=1000000)
+        ).run_loop(start_print_iter=1000)
 
 if __name__ == "__main__":
-    main()
+  print(torch.cuda.is_available())
+  main()

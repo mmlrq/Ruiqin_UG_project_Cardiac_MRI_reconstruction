@@ -11,6 +11,7 @@ import scipy.io as scio
 import numpy as np
 from coil_combine import rss_complex
 import h5py
+import mat73
 
 
 def loadmat(filename):
@@ -19,8 +20,8 @@ def loadmat(filename):
     # #acquire dataset
     # dataset = mat_file['img4ranking']
     try:
-        mat_file = scio.loadmat(filename)
-        dataset = mat_file['img4ranking']
+        dataset = mat73.loadmat(filename)
+        # dataset = mat_file['kspace_single_sub04']
         print("MAT file opened successfully using scipy.io.loadmat.")
     except NotImplementedError:
         try:
@@ -65,7 +66,7 @@ def multicoilkdata2img(dataset):
 def kdata2img(dataset):
     k_space = np.transpose(dataset, [3, 2, 1, 0])
     # transfer k-space to complex
-    k_space = k_space['real'] + 1j * k_space['imag']
+    # k_space = k_space['real'] + 1j * k_space['imag']
     # apply fft to k-space 
     recon = abs(ifft2c(k_space))
     return recon

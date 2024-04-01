@@ -4,23 +4,37 @@ Copyright (c) Facebook, Inc. and its affiliates.
 This source code is licensed under the MIT license found in the
 LICENSE file in the root directory of this source tree.
 """
-import os
-from typing import Optional
-import csv
-import pandas as pd
 
+import argparse
+import pathlib
+from argparse import ArgumentParser
+from typing import Optional
+
+import h5py
 import numpy as np
+from runstats import Statistics
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+
+from fastmri.data import transforms
+
+import torch
+import torch.nn.functional as F
 
 
 def mse(gt: np.ndarray, pred: np.ndarray) -> np.ndarray:
     """Compute Mean Squared Error (MSE)"""
     return np.mean((gt - pred) ** 2)
 
+def mse_torch(gt: torch.Tensor, pred: torch.Tensor) -> torch.Tensor:
+    return F.mse_loss(gt, pred)
 
 def nmse(gt: np.ndarray, pred: np.ndarray) -> np.ndarray:
     """Compute Normalized Mean Squared Error (NMSE)"""
     return np.array(np.linalg.norm(gt - pred) ** 2 / np.linalg.norm(gt) ** 2)
+
+def nmse_torch(gt: torch.Tensor, pred: torch.Tensor) -> torch.Tensor:
+    """if you use from_numpy,remember to use .astype(np.float32)"""
+    return (torch.linalg.norm(gt - pred) ** 2 / torch.linalg.norm(gt) ** 2)
 
 
 def psnr(
@@ -36,89 +50,157 @@ def ssim(
     gt: np.ndarray, pred: np.ndarray, maxval: Optional[float] = None
 ) -> np.ndarray:
     """Compute Structural Similarity Index Metric (SSIM)"""
-    if maxval is None:
-        maxval = gt.max()
-    return structural_similarity(gt, pred, data_range=maxval)
+    if not gt.ndim == 3:
+        raise ValueError("Unexpected number of dimensions in ground truth.")
+    if not gt.ndim == pred.ndim:
+        raise ValueError("Ground truth dimensions does not match pred.")
+
+    maxval = gt.max() if maxval is None else maxval
+
+    ssim = np.array([0])
+    for slice_num in range(gt.shape[0]):
+        ssim = ssim + structural_similarity(
+            gt[slice_num], pred[slice_num], data_range=maxval
+        )
+
+    return ssim / gt.shape[0]
 
 
-def calmetric(pred_recon, gt_recon):
-    if gt_recon.ndim == 4:
-        psnr_array = np.zeros((gt_recon.shape[-2], gt_recon.shape[-1]))
-        ssim_array = np.zeros((gt_recon.shape[-2], gt_recon.shape[-1]))
-        nmse_array = np.zeros((gt_recon.shape[-2], gt_recon.shape[-1]))
-
-        for i in range(gt_recon.shape[-2]):
-            for j in range(gt_recon.shape[-1]):
-                pred, gt = pred_recon[:, :, i, j], gt_recon[:, :, i, j]
-                psnr_array[i, j] = psnr(gt / gt.max(), pred / pred.max())
-                ssim_array[i, j] = ssim(gt / gt.max(), pred / pred.max())
-                nmse_array[i, j] = nmse(gt / gt.max(), pred / pred.max())
-    else:
-        psnr_array = np.zeros((1, gt_recon.shape[-1]))
-        ssim_array = np.zeros((1, gt_recon.shape[-1]))
-        nmse_array = np.zeros((1, gt_recon.shape[-1]))
-
-        for j in range(gt_recon.shape[-1]):
-            pred, gt = pred_recon[:, :, j], gt_recon[:, :, j]
-            psnr_array[0,j] = psnr(gt / gt.max(), pred / pred.max())
-            ssim_array[0,j] = ssim(gt / gt.max(), pred / pred.max())
-            nmse_array[0,j] = nmse(gt / gt.max(), pred / pred.max())
-
-    return psnr_array, ssim_array, nmse_array
+METRIC_FUNCS = dict(
+    MSE=mse,
+    NMSE=nmse,
+    PSNR=psnr,
+    SSIM=ssim,
+)
 
 
-def save_metric(psnr_array, ssim_array, nmse_array, folder, Sub_Task, Coil_Type):
-    Results_folder_name = Coil_Type+'_'+Sub_Task+'_Results'
-    if not os.path.exists(Results_folder_name):
-        os.makedirs(Results_folder_name)
+class Metrics:
+    """
+    Maintains running statistics for a given collection of metrics.
+    """
 
-    filename  = Results_folder_name + '/' + Sub_Task + '_psnr_results.csv'
-    if not os.path.isfile(filename):
-        with open(filename, mode='a') as psnr_file:
-            writer = csv.writer(psnr_file)
-            writer.writerow(['folder', 'Sub_Task', 'PSNR'])
-    with open(filename, mode='a') as psnr_file:
-        writer = csv.writer(psnr_file)
-        writer.writerow([folder, Sub_Task, psnr_array])
+    def __init__(self, metric_funcs):
+        """
+        Args:
+            metric_funcs (dict): A dict where the keys are metric names and the
+                values are Python functions for evaluating that metric.
+        """
+        self.metrics = {metric: Statistics() for metric in metric_funcs}
 
-    filename = Results_folder_name + '/' + Sub_Task + '_ssim_results.csv'
-    if not os.path.isfile(filename):
-        with open(filename, mode='a') as ssim_file:
-            writer = csv.writer(ssim_file)
-            writer.writerow(['folder', 'Sub_Task', 'SSIM'])
-    with open(filename, mode='a') as ssim_file:
-        writer = csv.writer(ssim_file)
-        writer.writerow([folder, Sub_Task, ssim_array])
+    def push(self, target, recons):
+        for metric, func in METRIC_FUNCS.items():
+            self.metrics[metric].push(func(target, recons))
 
-    filename = Results_folder_name + '/' + Sub_Task + '_nmse_results.csv'
-    if not os.path.isfile(filename):
-        with open(filename, mode='a') as nmse_file:
-            writer = csv.writer(nmse_file)
-            writer.writerow(['folder', 'Sub_Task', 'NMSE'])
-    with open(filename, mode='a') as nmse_file:
-        writer = csv.writer(nmse_file)
-        writer.writerow([folder, Sub_Task, nmse_array])
+    def means(self):
+        return {metric: stat.mean() for metric, stat in self.metrics.items()}
 
-def memo_metric0(gt_recon):
-    psnr_array = np.zeros((gt_recon.shape[2], gt_recon.shape[3]))
-    ssim_array = np.zeros((gt_recon.shape[2], gt_recon.shape[3]))
-    nmse_array = np.zeros((gt_recon.shape[2], gt_recon.shape[3]))
-    return psnr_array, ssim_array, nmse_array
+    def stddevs(self):
+        return {metric: stat.stddev() for metric, stat in self.metrics.items()}
+
+    def __repr__(self):
+        means = self.means()
+        stddevs = self.stddevs()
+        metric_names = sorted(list(means))
+        return " ".join(
+            f"{name} = {means[name]:.4g} +/- {2 * stddevs[name]:.4g}"
+            for name in metric_names
+        )
 
 
-def save_df(user_input,table,processed_list, Sub_Task,Coil_Type):
-    # Save wall thickness for all the subjects
-    Results_folder_name = Coil_Type + '_' + Sub_Task + '_Results'
-    filename = Results_folder_name + '/' + Sub_Task + '_ROI_results.csv'
-    columns_list = ['Mapping_AHA_1', 'Mapping_AHA_2', 'Mapping_AHA_3',
-                    'Mapping_AHA_4', 'Mapping_AHA_5', 'Mapping_AHA_6',
-                    'Mapping_AHA_7', 'Mapping_AHA_8', 'Mapping_AHA_9',
-                    'Mapping_AHA_10', 'Mapping_AHA_11', 'Mapping_AHA_12',
-                    'Mapping_AHA_13', 'Mapping_AHA_14', 'Mapping_AHA_15', 'Mapping_AHA_16',
-                    'Mapping_Global']
-    columns_list = [user_input + '_' + s for s in columns_list]
+def evaluate(args, recons_key):
+    metrics = Metrics(METRIC_FUNCS)
 
-    df = pd.DataFrame(table, index=processed_list,
-                      columns=columns_list
-                      )
-    df.to_csv(filename)
+    for tgt_file in args.target_path.iterdir():
+        with h5py.File(tgt_file, "r") as target, h5py.File(
+            args.predictions_path / tgt_file.name, "r"
+        ) as recons:
+            if args.acquisition and args.acquisition != target.attrs["acquisition"]:
+                continue
+
+            if args.acceleration and target.attrs["acceleration"] != args.acceleration:
+                continue
+
+            target = target[recons_key][()]
+            recons = recons["reconstruction"][()]
+            target = transforms.center_crop(
+                target, (target.shape[-1], target.shape[-1])
+            )
+            recons = transforms.center_crop(
+                recons, (target.shape[-1], target.shape[-1])
+            )
+            metrics.push(target, recons)
+
+    return metrics
+
+
+if __name__ == "__main__":
+
+    input = torch.normal(0,1, size=(1,1,224,448))
+    gt = torch.normal(0,1, size=(1,1,224,448))
+
+    mse_t = mse_torch(gt, input)
+    mse_ = mse_t.numpy()
+
+    input_np = input.numpy()
+    gt_np = gt.numpy()
+    mse_np = mse(gt_np, input_np)
+
+    nmse_np = nmse(gt_np, input_np)
+
+    print(mse_ - mse_np)
+    print(nmse_np)
+
+    input = np.array([0,1,1,1,0,0])
+    input_gt = np.array([0,1,1,1,1,0])
+    nmse_np = nmse(input, input_gt)
+    mse_np = mse(input, input_gt)
+    print(nmse_np)
+    print(mse_np)
+    input = torch.from_numpy(input.astype(np.float32))
+    input_gt = torch.from_numpy(input_gt.astype(np.float32))
+    nmse_ = nmse_torch(input, input_gt, "alg1")
+    print(nmse_)
+
+
+    # parser = ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # parser.add_argument(
+    #     "--target-path",
+    #     type=pathlib.Path,
+    #     required=True,
+    #     help="Path to the ground truth data",
+    # )
+    # parser.add_argument(
+    #     "--predictions-path",
+    #     type=pathlib.Path,
+    #     required=True,
+    #     help="Path to reconstructions",
+    # )
+    # parser.add_argument(
+    #     "--challenge",
+    #     choices=["singlecoil", "multicoil"],
+    #     required=True,
+    #     help="Which challenge",
+    # )
+    # parser.add_argument("--acceleration", type=int, default=None)
+    # parser.add_argument(
+    #     "--acquisition",
+    #     choices=[
+    #         "CORPD_FBK",
+    #         "CORPDFS_FBK",
+    #         "AXT1",
+    #         "AXT1PRE",
+    #         "AXT1POST",
+    #         "AXT2",
+    #         "AXFLAIR",
+    #     ],
+    #     default=None,
+    #     help="If set, only volumes of the specified acquisition type are used "
+    #     "for evaluation. By default, all volumes are included.",
+    # )
+    # args = parser.parse_args()
+
+    # recons_key = (
+    #     "reconstruction_rss" if args.challenge == "multicoil" else "reconstruction_esc"
+    # )
+    # metrics = evaluate(args, recons_key)
+    # print(metrics)

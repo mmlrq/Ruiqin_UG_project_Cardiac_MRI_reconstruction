@@ -46,8 +46,8 @@ def prepare_task1_dataset(base_dir, save_dir):
     save_dir = save_dir
     modalityName = 'Cine'
     coilInfoSet = {'SingleCoil'}
-    acc_factorSet = {'AccFactor04', 'AccFactor08', 'AccFactor10', 'FullSample'}
-
+    #acc_factorSet = {'AccFactor04'}
+    acc_factorSet = {'AccFactor04','AccFactor08', 'AccFactor10','FullSample'}
     for coilInfo in coilInfoSet:
         for acc_factor in acc_factorSet:
             dir = os.path.join(base_dir, coilInfo, modalityName, 'TrainingSet', acc_factor)
@@ -68,7 +68,9 @@ def prepare_task1_dataset(base_dir, save_dir):
                     lax = loadmat(lax_path)
                     lax_data = lax[NAME_DICT[coilInfo][acc_factor]]
                     print(lax_data.shape)
+                    lax_data = np.transpose(lax_data, (2, 3, 0, 1))
                     lax_data = paddingZero_np(lax_data, (512, 512))
+                    lax_data = np.transpose(lax_data, (2, 3, 0, 1))
                     print(lax_data.shape)
                     if coilInfo == 'SingleCoil':
                         print('lax Single')
@@ -94,7 +96,9 @@ def prepare_task1_dataset(base_dir, save_dir):
                     sax = loadmat(sax_path)
                     sax_data = sax[NAME_DICT[coilInfo][acc_factor]]
                     print(sax_data.shape)
+                    sax_data = np.transpose(sax_data, (2, 3, 0, 1))
                     sax_data = paddingZero_np(sax_data, (512, 512))
+                    sax_data = np.transpose(sax_data, (2, 3, 0, 1))
                     print(sax_data.shape)
                     if coilInfo == 'SingleCoil':
                         print('sax Single')
@@ -115,13 +119,9 @@ def prepare_task1_dataset(base_dir, save_dir):
                                 os.makedirs(os.path.join(save_dir, acc_factor))
                             np.save(save_path, img)
 
-
-original_dataset_path = "D:\\university of dundee\\OneDrive - University of Dundee\\Documents\\final project\\DiffCMR-main\\SingleCoil1"
-save_prepared_dataset_path = "D:\\university of dundee\\OneDrive - University of Dundee\\Documents\\final project\\DiffCMR-main\\task1"
+original_dataset_path = "C:/Users/2524923/Downloads/SingleCoil"
+save_prepared_dataset_path = "C:/Users/2524923/Downloads/task1"
 prepare_task1_dataset(original_dataset_path, save_prepared_dataset_path)
-
-
-
 
 def generate_training_pairs(base_path):
     acc_factorSet = {'AccFactor04', 'AccFactor08', 'AccFactor10'}
@@ -170,7 +170,7 @@ class CMRxReconTask1Dataset(Dataset):
         return len(self.train_pairs)
 
     def __getitem__(self, index):
-        path, GT_path = self.train_pairs[index].replace("\n", "").split(" ")
+        path, GT_path = self.train_pairs[index].replace("\n","").split(" ", maxsplit=1)
         print(path, GT_path)
         if path.endswith('.npy'):
             item = np.load(path)
@@ -186,9 +186,9 @@ class CMRxReconTask1Dataset(Dataset):
 task1_dataset = CMRxReconTask1Dataset(file_path="AccFactor04_rMax_512_training_pair.txt")
 print(len(task1_dataset))
 
-data1 = task1_dataset[1]
-inp = data1["input"]
-GT = data1["GT"]
+data47 = task1_dataset[47]
+inp = data47["input"]
+GT = data47["GT"]
 import matplotlib.pyplot as plt
 
 # plt.imshow(GT-inp,cmap='gray')
