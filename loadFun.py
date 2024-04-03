@@ -66,7 +66,7 @@ def multicoilkdata2img(dataset):
 def kdata2img(dataset):
     k_space = np.transpose(dataset, [3, 2, 1, 0])
     # transfer k-space to complex
-    # k_space = k_space['real'] + 1j * k_space['imag']
+    k_space = k_space['real'] + 1j * k_space['imag']
     # apply fft to k-space 
     recon = abs(ifft2c(k_space))
     return recon
