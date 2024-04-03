@@ -67,10 +67,11 @@ def prepare_task1_dataset(base_dir, save_dir):
                 if os.path.exists(lax_path):
                     lax = loadmat(lax_path)
                     lax_data = lax[NAME_DICT[coilInfo][acc_factor]]
+                    k_space = np.transpose(dataset, [3, 2, 1, 0])
                     print(lax_data.shape)
-                    lax_data = np.transpose(lax_data, (2, 3, 0, 1))
+                    # lax_data = np.transpose(lax_data, (2, 3, 0, 1))
                     lax_data = paddingZero_np(lax_data, (512, 512))
-                    lax_data = np.transpose(lax_data, (2, 3, 0, 1))
+                    # lax_data = np.transpose(lax_data, (2, 3, 0, 1))
                     print(lax_data.shape)
                     if coilInfo == 'SingleCoil':
                         print('lax Single')
@@ -95,10 +96,11 @@ def prepare_task1_dataset(base_dir, save_dir):
                 if os.path.exists(sax_path):
                     sax = loadmat(sax_path)
                     sax_data = sax[NAME_DICT[coilInfo][acc_factor]]
+                    k_space = np.transpose(dataset, [3, 2, 1, 0])
                     print(sax_data.shape)
-                    sax_data = np.transpose(sax_data, (2, 3, 0, 1))
+                    # sax_data = np.transpose(sax_data, (2, 3, 0, 1))
                     sax_data = paddingZero_np(sax_data, (512, 512))
-                    sax_data = np.transpose(sax_data, (2, 3, 0, 1))
+                    # sax_data = np.transpose(sax_data, (2, 3, 0, 1))
                     print(sax_data.shape)
                     if coilInfo == 'SingleCoil':
                         print('sax Single')
